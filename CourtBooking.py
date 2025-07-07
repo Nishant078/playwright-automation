@@ -17,6 +17,7 @@ class CourtBookingThread(threading.Thread):
         self.password = password
         self.slot = slot
         self.court_number = court_number
+        self.auth_file_path = "auth/" + re.sub(r"[^a-zA-Z0-9]", "_", self.username) + ".json"
 
     def log(self, message):
         with lock:
@@ -26,25 +27,41 @@ class CourtBookingThread(threading.Thread):
         with sync_playwright() as p:
             self.browser = p.chromium.launch(headless=False)
             self.context = self.create_context()
+            self.context.set_default_timeout(0)
             self.page = self.context.new_page()
-            self.page.set_default_timeout(10000)
 
-            self.login()
+            self.log("Starting...")
+            self.goto_home_page()
+            if not self.is_logged_in():
+                self.login()
             self.wait_till_booking_time()
             self.goto_booking_page()
             self.select_court()
             self.book()
+            self.done()
 
-            while True:
-                time.sleep(1)
+    def done(self):
+        while True:
+            time.sleep(1000)
 
-    def convert_to_filename(self):
-        return re.sub(r"[^a-zA-Z0-9]", "_", self.username)
+    def goto_home_page(self):
+        self.page.goto("https://bookings.better.org.uk/")
+        if not should_store_auth:
+            self.page.click("button:has-text('Reject All')")
+        self.log("Home page loaded.")
+
+    def is_logged_in(self):
+        if not should_store_auth:
+            return False
+        self.page.wait_for_selector('[data-testid="home-dashboard"]')
+        if self.page.query_selector("button:has-text('Log in')"):
+            self.log("Not logged in.")
+            return False
+        self.log("Already logged in.")
+        return True
 
     def login(self):
-        self.page.goto("https://bookings.better.org.uk/")
-        # self.page.click("button:has-text('Accept All Cookies')")
-        self.page.click("button:has-text('Reject All')")
+        self.log("Logging in...")
 
         self.page.click("button:has-text('Log in')")
 
@@ -58,11 +75,18 @@ class CourtBookingThread(threading.Thread):
 
         self.log("Logged in successfully.")
         if should_store_auth:
-            self.context.storage_state(path=f"auth/{self.convert_to_filename()}.json")
+            self.log("Storing auth state...")
+            self.context.storage_state(path=self.auth_file_path)
+
+    def wait_till_booking_time(self):
+        self.log("Waiting for booking time...")
+        booking_time = datetime.now().replace(hour=22, minute=0, second=0, microsecond=300000)
+        while datetime.now() < booking_time:
+            pass
+        self.log(f"Proceeding to book : {datetime.now()}")
 
     def goto_booking_page(self):
         now = datetime.now()
-        self.log(f"Current date and time: {now.day}/{now.month}/{now.year} {now.hour}:{now.minute}")
         booking_date = now + timedelta(days=7)
         day = booking_date.day
         month = booking_date.month
@@ -80,13 +104,6 @@ class CourtBookingThread(threading.Thread):
 
         self.log("Navigated to booking page successfully.")
 
-    def wait_till_booking_time(self):
-        booking_time = datetime.now().replace(hour=22, minute=0, second=0)
-
-        while True:
-            if datetime.now() >= booking_time:
-                break
-
     def select_court(self):
         self.page.click("div.css-thk6w-control")
         self.page.click(f"div[role='option']:has-text('Sports Hall Court {self.court_number}')")
@@ -97,12 +114,11 @@ class CourtBookingThread(threading.Thread):
 
     def create_context(self):
         if should_store_auth:
-            auth_file = f"auth/{self.convert_to_filename(self.username)}.json"
-            if os.path.isfile(auth_file):
-                self.log(f"Using existing auth file: {auth_file}")
-                context = self.browser.new_context(storage_state=auth_file)
+            if os.path.isfile(self.auth_file_path):
+                self.log(f"Using existing auth file: {self.auth_file_path}")
+                context = self.browser.new_context(storage_state=self.auth_file_path)
             else:
-                self.log(f"No auth file found for {self.username}. Creating a new one.")
+                self.log(f"No auth file found for {self.username}. Creating a new auth context.")
                 context = self.browser.new_context()
         else:
             context = self.browser.new_context()
@@ -113,11 +129,17 @@ class CourtBookingThread(threading.Thread):
         self.page.on("response", lambda response: self.log(f"⬅️ {response.status} {response.url}"))
 
 
-court_bookings = {
-    CourtBookingThread("badders2024@gmail.com", "Badders123$", "17:20-18:00", 1),
-    CourtBookingThread("deepan.shah@thermofisher.com", "Badminton_2024", "17:20-18:00", 2),
-    CourtBookingThread("manish.arora@iqvia.com", "Manish@13", "17:20-18:00", 3),
-}
+court_bookings = [
+    CourtBookingThread("badders2024@gmail.com", "Badders123$", "16:40-17:20", 1),
+    # CourtBookingThread("deepan.shah@thermofisher.com", "Badminton_2024", "17:20-18:00", 1),
+    # CourtBookingThread("manish.arora@iqvia.com", "Manish@13", "17:20-18:00", 3),
+]
 
+threads = []
 for court_booking in court_bookings:
-    threading.Thread(target=court_booking.run).start()
+    thread = threading.Thread(target=court_booking.run)
+    thread.start()
+    threads.append(thread)
+
+for thread in threads:
+    thread.join()

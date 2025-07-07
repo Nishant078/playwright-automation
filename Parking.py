@@ -28,10 +28,10 @@ class ParkingThread(threading.Thread):
         with sync_playwright() as p:
             self.browser = p.chromium.launch(headless=False)
             self.page = self.browser.new_page()
-            self.page.set_default_timeout(10000)
+            self.page.set_default_timeout(0)
 
+            self.goto_home_page()
             self.login()
-            self.park()
 
             while True:
                 time.sleep(1)
@@ -39,15 +39,16 @@ class ParkingThread(threading.Thread):
     def convert_to_filename(self):
         return re.sub(r"[^a-zA-Z0-9]", "_", self.username)
 
-    def login(self):
+    def goto_home_page(self):
         self.page.goto("https://m2.paybyphone.co.uk/login")
-
         self.page.wait_for_selector("#onetrust-reject-all-handler")
         self.page.click("#onetrust-reject-all-handler")
+        self.log("Home page loaded.")
+
+    def login(self):
         self.page.fill("input[name='username']", self.username)
         self.page.fill("input[name='password']", self.password)
         self.page.click("button:has-text('Sign in')")
-
         self.log("Logged in successfully.")
 
     def park(self):
@@ -55,7 +56,7 @@ class ParkingThread(threading.Thread):
 
         self.page.fill("input[name='locationNumber']", parking_location_code)
         self.page.click("div.MuiSelect-root[role='button']")
-        
+
         sleep(5)
         flutter_element = self.page.locator("flutter-view")
         flutter_element.screenshot(path="flutter_dropdown.png")
@@ -63,7 +64,7 @@ class ParkingThread(threading.Thread):
         data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
         self.log(data)
         return
-      
+
         self.page.click("button:has-text('continue')")
 
         self.page.fill("input[name='duration']", "30")
@@ -73,7 +74,6 @@ class ParkingThread(threading.Thread):
 
         self.page.click("button:has-text('Park')")
         # self.page.click("button:has-text('View parking session')")
-
 
 
 ParkingThread("7737687865", "Loveyou1@", "HJ71VZP").run()
