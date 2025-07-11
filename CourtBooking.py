@@ -5,17 +5,18 @@ from datetime import timedelta
 import threading
 import re
 import os
+import json
 
 should_store_auth = False  # Set to True if you want to store auth state
 lock = threading.Lock()
 
 
 class CourtBookingThread(threading.Thread):
-    def __init__(self, username, password, slot, court_number):
+    def __init__(self, username, password, time_slot, court_number):
         super().__init__()
         self.username = username
         self.password = password
-        self.slot = slot
+        self.time_slot = time_slot
         self.court_number = court_number
         self.auth_file_path = "auth/" + re.sub(r"[^a-zA-Z0-9]", "_", self.username) + ".json"
 
@@ -92,7 +93,7 @@ class CourtBookingThread(threading.Thread):
         month = booking_date.month
         year = booking_date.year
         booking_date = f"{year}-{str(month).zfill(2)}-{str(day).zfill(2)}"
-        booking_url = f"https://bookings.better.org.uk/location/hillingdon-sports-leisure-centre/badminton-40min/{booking_date}/by-time/slot/{self.slot}"
+        booking_url = f"https://bookings.better.org.uk/location/hillingdon-sports-leisure-centre/badminton-40min/{booking_date}/by-time/slot/{self.time_slot}"
         self.log(f"Booking URL: {booking_url}")
 
         while True:
@@ -130,10 +131,28 @@ class CourtBookingThread(threading.Thread):
 
 
 court_bookings = [
-    CourtBookingThread("badders2024@gmail.com", "Badders123$", "16:40-17:20", 1),
-    # CourtBookingThread("deepan.shah@thermofisher.com", "Badminton_2024", "17:20-18:00", 1),
+    # CourtBookingThread("badders2024@gmail.com", "Badders123$", "20:40-21:20", 1),
+    # CourtBookingThread("deepan.shah@thermofisher.com", "Badminton_2024", "21:20-22:00", 1),
     # CourtBookingThread("manish.arora@iqvia.com", "Manish@13", "17:20-18:00", 3),
+    # CourtBookingThread("cooldave001@yahoo.co.uk", "Health@23-AD", "17:20-18:00", 3),
 ]
+
+# read BookingInstruction.json for booking instructions
+with open("BookingInstruction.json", "r") as f:
+    booking_instructions = json.load(f)["booking_instructions"]
+    for booking_instruction in booking_instructions:
+        if booking_instruction["should_book"]:
+            print(
+                f"Will be booking for {booking_instruction['username']} \n\t- at {booking_instruction['time_slot']} on court {booking_instruction['court_number']}"
+            )
+            court_bookings.append(
+                CourtBookingThread(
+                    booking_instruction["username"],
+                    booking_instruction["password"],
+                    booking_instruction["time_slot"],
+                    booking_instruction["court_number"],
+                )
+            )
 
 threads = []
 for court_booking in court_bookings:

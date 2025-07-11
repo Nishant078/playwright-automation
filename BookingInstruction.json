@@ -1,0 +1,32 @@
+{
+    "booking_instructions": [
+        {
+            "should_book": true,
+            "username": "badders2024@gmail.com",
+            "password": "Badders123$",
+            "time_slot": "20:40-21:20",
+            "court_number": "1"
+        },
+        {
+            "should_book": true,
+            "username": "deepan.shah@thermofisher.com",
+            "password": "Badminton_2024",
+            "time_slot": "21:20-22:00",
+            "court_number": "1"
+        },
+        {
+            "should_book": true,
+            "username": "manish.arora@iqvia.com",
+            "password": "Manish@13",
+            "time_slot": "17:20-18:00",
+            "court_number": "3"
+        },
+        {
+            "should_book": true,
+            "username": "cooldave001@yahoo.co.uk",
+            "password": "Health@23-AD",
+            "time_slot": "17:20-18:00",
+            "court_number": "3"
+        }
+    ]
+}
